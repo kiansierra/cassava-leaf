@@ -24,10 +24,13 @@ def make_classification_figure(image_tensor, y_true, y_pred):
     return fig
 
 class LeafClassifier(pl.LightningModule):
-    def __init__(self, lr=1e-3) -> None:
+    def __init__(self, lr=1e-3, opt_freq = 300, dec_rate = 0.98, opt_upsteps = 3 ) -> None:
         super().__init__()
         self.save_hyperparameters()
         self.lr =lr
+        self.opt_freq = opt_freq
+        self.dec_rate = dec_rate
+        self.opt_upsteps = opt_upsteps
         self.example_input_array = torch.ones(size = (3,3,600,800))
         self.loss = nn.CrossEntropyLoss()
         self.train_accuracy = pl.metrics.Accuracy()
@@ -59,9 +62,9 @@ class LeafClassifier(pl.LightningModule):
         self.log('val_acc_epoch', self.val_accuracy.compute())
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
-        schedule_fun = lambda step: (0.995**step)*(1+ step%10)
+        schedule_fun = lambda step: (self.dec_rate**step)*(1+ step%self.opt_upsteps)
         lr_scheduler = {'scheduler': torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda = [schedule_fun]),
-                    'interval': 'step', 'frequency':500,  'monitor':'val_loss'}
+                    'interval': 'step', 'frequency':self.opt_freq,  'monitor':'val_loss'}
         return [optimizer], [lr_scheduler]
 #%%
 class Resnet18(LeafClassifier):
