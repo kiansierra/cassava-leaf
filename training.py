@@ -8,10 +8,18 @@ from pytorch_lightning.callbacks import  LearningRateMonitor, ModelCheckpoint, E
 from sklearn import model_selection
 from dataloaders import CassavaDataModule
 from models import Resnet18, Resnet50, EfficientNetB1
+import argparse 
 #%%
 # os.listdir('..')
+#%%
+parser = argparse.ArgumentParser()
+parser.add_argument('--dd', type=str, default='..', help='Data directory')
+parser.add_argument('--m', type=str, default='resnet18', help='model')
+#%%
+args = parser.parse_args()
 # %%
-df = pd.read_csv('../train.csv')
+
+df = pd.read_csv(os.path.join(args.dd, 'train.csv'))
 
 #%%
 train_df, val_df = model_selection.train_test_split(df, test_size=0.1, random_state=42, stratify=df.label.values)
@@ -26,7 +34,7 @@ classifier_list = [Resnet18, Resnet50, EfficientNetB1]
 #%%
 classifier_names = [elem.__name__.lower() for elem in classifier_list]
 # %%
-classifier_model_name = 'efficientnetb1'
+classifier_model_name = args.m
 classifier = classifier_list[classifier_names.index(classifier_model_name)]
 #%%
 classifier_model_dir = os.path.join('logs', classifier_model_name)
