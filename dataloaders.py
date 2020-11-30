@@ -19,10 +19,10 @@ def collate_fun(transformations):
         return transformations(x), y 
     return collate
 class CassavaDataset(Dataset):
-    def __init__(self, df, data_dir = '../train_images', transformations=None) -> None:
+    def __init__(self, df, data_dir = '..', transformations=None) -> None:
         super(CassavaDataset,self).__init__()
         self.df = df
-        self.data_dir = data_dir
+        self.data_dir = os.path.join(data_dir, 'train_images')
         self.transformations = transformations
     def __len__(self) -> int:
         return len(self.df)
@@ -36,15 +36,16 @@ class CassavaDataset(Dataset):
         return im, label
 # %%
 class CassavaDataModule(pl.LightningDataModule):
-    def __init__(self, train_df, val_df, batch_size=3, shuffle=True) -> None:
+    def __init__(self, train_df, val_df, batch_size=3, shuffle=True, data_dir = '..') -> None:
         super(CassavaDataModule,self).__init__()
         self.train_df = train_df
         self.val_df = val_df
         self.bs = batch_size
         self.shuffle = shuffle
+        self.data_dir = data_dir
     def train_dataloader(self, *args, **kwargs) -> DataLoader:
-        train_dataset = CassavaDataset(self.train_df, transformations=transformations)
+        train_dataset = CassavaDataset(self.train_df, data_dir=self.data_dir, transformations=transformations)
         return DataLoader(train_dataset, batch_size=self.bs, shuffle = self.shuffle)
     def val_dataloader(self, *args, **kwargs) -> DataLoader:
-        val_dataset = CassavaDataset(self.val_df)
+        val_dataset = CassavaDataset(self.val_df, data_dir=self.data_dir)
         return DataLoader(val_dataset, batch_size=self.bs)
