@@ -28,7 +28,7 @@ train_df.reset_index(inplace=True, drop=True)
 val_df.reset_index(inplace=True, drop=True)
 
 #%%
-datamodule = CassavaDataModule(train_df, val_df, batch_size = 6)
+datamodule = CassavaDataModule(train_df, val_df, batch_size = 6, data_dir=args.dd)
 #%%
 classifier_list = [Resnet18, Resnet50, EfficientNetB1]
 #%%
