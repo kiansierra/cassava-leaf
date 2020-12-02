@@ -35,12 +35,14 @@ class LeafClassifier(pl.LightningModule):
         self.loss = nn.CrossEntropyLoss()
         self.train_accuracy = pl.metrics.Accuracy()
         self.val_accuracy = pl.metrics.Accuracy()
+        self.train_fscore = pl.metrics.classification.FBeta(num_classes=5)
     def training_step(self, batch, batch_idx):
         x, y = batch
         y_hat = self(x)
         loss = self.loss(y_hat, y)
         self.log('train_loss', loss)
         self.log('train_acc_step', self.train_accuracy(y_hat, y))
+        self.log('train_fscore', self.train_fscore(y_hat, y))
         if batch_idx % 200 == 0:
             self.logger.experiment.add_images(f'train_image', x, dataformats ='NCHW', global_step=self.global_step)
         return loss
@@ -57,6 +59,7 @@ class LeafClassifier(pl.LightningModule):
     def training_epoch_end(self, outs):
         # log epoch metric
         self.log('train_acc_epoch', self.train_accuracy.compute())
+        self.log('train_fscore_epoch', self.train_fscore.compute())
     def validation_epoch_end(self, outs):
         # log epoch metric
         self.log('val_acc_epoch', self.val_accuracy.compute())

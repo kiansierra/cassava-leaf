@@ -21,8 +21,6 @@ val_df.reset_index(inplace=True, drop=True)
 
 #%%
 datamodule = CassavaDataModule(train_df, val_df, batch_size = 1)
-#%%
-
 # %%
 identity_model_name = 'identity'
 identity_model_dir = os.path.join('logs', identity_model_name)
