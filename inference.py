@@ -23,7 +23,7 @@ def inference(args):
     model.freeze()
     train_df = pd.read_csv(os.path.join(args.data_directory, 'train.csv'))
     test_df = pd.read_csv(os.path.join(args.data_directory, 'sample_submission.csv'))
-    datamodule = CassavaDataModule(train_df, val_df=None, test_df=test_df, batch_size = 8, data_dir=args.data_directory, num_workers=4, shuffle=False)
+    datamodule = CassavaDataModule(train_df, val_df=None, test_df=test_df, batch_size = 8, data_dir=args.data_directory, num_workers=4)
     preds = []
     for batch in tqdm(iter(datamodule.test_dataloader())):
         x, _ =batch
