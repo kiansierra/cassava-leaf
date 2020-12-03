@@ -11,16 +11,19 @@ from tqdm import tqdm
 def inference(args):
     classifier_list = [Resnet18, Resnet50, EfficientNetB1]
     classifier_names = [elem.__name__.lower() for elem in classifier_list]
-    classifier_model_name = args.m
+    classifier_model_name = args.model_type
     classifier = classifier_list[classifier_names.index(classifier_model_name)]
-    checkpoint_dir = os.path.join('logs', args.m)
-    checkpoints = [elem for elem in os.listdir(checkpoint_dir) if elem.split('.')[-1] =='ckpt']
-    checkpoint_path = os.path.join(checkpoint_dir, checkpoints[0])
+    if args.checkpoint_path is not None:
+        checkpoint_path = args.checkpoint_path
+    else:
+        checkpoint_dir = os.path.join('logs', args.model_type)
+        checkpoints = [elem for elem in os.listdir(checkpoint_dir) if elem.split('.')[-1] =='ckpt']
+        checkpoint_path = os.path.join(checkpoint_dir, checkpoints[0])
     model = classifier.load_from_checkpoint(checkpoint_path).to('cuda')
     model.freeze()
-    train_df = pd.read_csv(os.path.join(args.dd, 'train.csv'))
-    test_df = pd.read_csv(os.path.join(args.dd, 'sample_submission.csv'))
-    datamodule = CassavaDataModule(train_df, val_df=None, test_df=test_df, batch_size = 8, data_dir=args.dd, num_workers=4, shuffle=False)
+    train_df = pd.read_csv(os.path.join(args.data_directory, 'train.csv'))
+    test_df = pd.read_csv(os.path.join(args.data_directory, 'sample_submission.csv'))
+    datamodule = CassavaDataModule(train_df, val_df=None, test_df=test_df, batch_size = 8, data_dir=args.data_directory, num_workers=4, shuffle=False)
     preds = []
     for batch in tqdm(iter(datamodule.test_dataloader())):
         x, _ =batch
@@ -30,7 +33,7 @@ def inference(args):
     print(y_preds.shape, len(test_df))
     test_df['label'] = y_preds
     test_df.to_csv('submission.csv', index=False)
-    if args.tr:
+    if args.train:
         preds = []
         for batch in tqdm(iter(datamodule.train_dataloader(train=False))):
             x, _ =batch
@@ -58,9 +61,9 @@ def inference(args):
 #%%
 if __name__=="__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dd', type=str, default='..', help='Data directory')
-    parser.add_argument('--m', type=str, default='efficientnetb1', help='model')
-    parser.add_argument('--cp', type=str, default='', help='checkpoint path')
-    parser.add_argument('--tr', type=bool, default=True, help='inference on train')
+    parser.add_argument('-dd', '--data_directory',type=str, default='..', help='Data directory')
+    parser.add_argument('-m', '--model_type', type=str, default='efficientnetb1', help='model')
+    parser.add_argument('-cp','--checkpoint_path' ,type=str, default=None, help='checkpoint path')
+    parser.add_argument('-tr', '--train', type=bool, default=True, help='inference on train')
     args = parser.parse_args()
     inference(args)

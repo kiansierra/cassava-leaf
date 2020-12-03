@@ -17,7 +17,7 @@ def train(args, trainer_args, model_args):
      train_df, val_df = model_selection.train_test_split(df, test_size=0.1, random_state=42, stratify=df.label.values)
      train_df.reset_index(inplace=True, drop=True)
      val_df.reset_index(inplace=True, drop=True)
-     datamodule = CassavaDataModule(train_df, val_df, batch_size = args['batch_size'], data_dir=args['data_directory'], num_workers=4)
+     datamodule = CassavaDataModule(train_df, val_df, batch_size = args['batch_size'], data_dir=args['data_directory'], num_workers=4, sample_size=args['sample_size'])
      classifier_list = [Resnet18, Resnet50, EfficientNetB1]
      classifier_names = [elem.__name__.lower() for elem in classifier_list]
      classifier_model_name = args['model_type']
@@ -45,8 +45,9 @@ def train(args, trainer_args, model_args):
 if __name__=="__main__":
      parser = argparse.ArgumentParser()
      parser.add_argument('-dd', '--data_directory', type=str, default='..', help='Data directory')
-     parser.add_argument('-m', '--model_type', type=str, default='efficientnetb1', help='model')
-     parser.add_argument('-bs', '--batch_size', type=int, default=8, help='batch size')
+     parser.add_argument('-mt', '--model_type', type=str, default='efficientnetb1', help='model')
+     parser.add_argument('-bs', '--batch_size', type=int, default=4, help='batch size')
+     parser.add_argument('-ss', '--sample_size', type=int, default=None, help='sample size')
      subparsers = parser.add_subparsers()
      #model_parser = subparsers.add_parser('model_arguments', add_help=False)
      model_parser = parser.add_argument_group("model_arguments")
