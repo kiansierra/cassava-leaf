@@ -7,25 +7,25 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import  LearningRateMonitor, ModelCheckpoint, EarlyStopping
 from sklearn import model_selection
 from dataloaders import CassavaDataModule
-from models import Resnet18, Resnet50, EfficientNetB1
+from models import Resnet18, Resnet50, EfficientNetB1, VisTransformer
 import argparse 
 #%%
 # os.listdir('..')
 # %%
 def train(args, trainer_args, model_args):
-     df = pd.read_csv(os.path.join(args['data_directory'], 'train.csv'))
-     train_df, val_df = model_selection.train_test_split(df, test_size=0.1, random_state=42, stratify=df.label.values)
-     train_df.reset_index(inplace=True, drop=True)
-     val_df.reset_index(inplace=True, drop=True)
-     datamodule = CassavaDataModule(train_df, val_df, batch_size = args['batch_size'], data_dir=args['data_directory'], num_workers=4, sample_size=args['sample_size'])
-     classifier_list = [Resnet18, Resnet50, EfficientNetB1]
+     # df = pd.read_csv(os.path.join(args['data_directory'], 'train.csv'))
+     # train_df, val_df = model_selection.train_test_split(df, test_size=0.1, random_state=42, stratify=df.label.values)
+     # train_df.reset_index(inplace=True, drop=True)
+     # val_df.reset_index(inplace=True, drop=True)
+     datamodule = CassavaDataModule(batch_size = args['batch_size'], data_dir=args['data_directory'], num_workers=4, sample_size=args['sample_size'])
+     classifier_list = [Resnet18, Resnet50, EfficientNetB1, VisTransformer]
      classifier_names = [elem.__name__.lower() for elem in classifier_list]
      classifier_model_name = args['model_type']
      classifier = classifier_list[classifier_names.index(classifier_model_name)]
      classifier_model_dir = os.path.join('logs', classifier_model_name)
      #trainer_args = {'max_epochs' :8, 'profiler' : 'simple', 'precision' :16, 'gradient_clip_val' : 100, 'gpus':1 }
      #model_args = {'lr' : 5e-5}
-     load_pretrained = True
+     load_pretrained = False
      load_pretrained = os.path.exists(classifier_model_dir) and load_pretrained
      checkpoints = list(filter(lambda x : '.ckpt' in x, os.listdir(classifier_model_dir))) if load_pretrained else [] 
      load_pretrained = load_pretrained and len(checkpoints)>0
@@ -44,10 +44,11 @@ def train(args, trainer_args, model_args):
 #%%
 if __name__=="__main__":
      parser = argparse.ArgumentParser()
+     
      parser.add_argument('-dd', '--data_directory', type=str, default='..', help='Data directory')
-     parser.add_argument('-mt', '--model_type', type=str, default='efficientnetb1', help='model')
+     parser.add_argument('-mt', '--model_type', type=str, default='vistransformer', help='model')
      parser.add_argument('-bs', '--batch_size', type=int, default=4, help='batch size')
-     parser.add_argument('-ss', '--sample_size', type=int, default=600, help='sample size')
+     parser.add_argument('-ss', '--sample_size', type=int, default=None, help='sample size')
      subparsers = parser.add_subparsers()
      #model_parser = subparsers.add_parser('model_arguments', add_help=False)
      model_parser = parser.add_argument_group("model_arguments")

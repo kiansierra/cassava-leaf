@@ -130,10 +130,10 @@ class ResidualBlock(torch.nn.Module):
     recommended architecture: http://torch.ch/blog/2016/02/04/resnets.html
     """
 
-    def __init__(self, channels):
+    def __init__(self, channels, kernel_size=3, stride=1):
         super(ResidualBlock, self).__init__()
-        self.conv1 = ConvLayer(channels, channels, kernel_size=3, stride=1)
-        self.conv2 = ConvLayer(channels, channels, kernel_size=3, stride=1)
+        self.conv1 = ConvLayer(channels, channels, kernel_size=kernel_size, stride=stride)
+        self.conv2 = ConvLayer(channels, channels, kernel_size=kernel_size, stride=stride)
         self.sqexc = SquuezeExcitation(channels)
         self.relu = nn.ReLU()
 
