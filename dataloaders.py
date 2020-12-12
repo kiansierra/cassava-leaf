@@ -5,9 +5,11 @@ from sklearn import model_selection
 import pandas as pd 
 import numpy as np 
 import pytorch_lightning as pl
+import torch
 from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 import cv2
 from PIL import Image
+import matplotlib.pyplot as plt
 #%%
 from albumentations.pytorch import ToTensorV2
 from albumentations import *
@@ -66,6 +68,22 @@ def load_image(image_path , to_tensor=False):
     img = Image.fromarray(img)
     if to_tensor: img = tr.ToTensor()(img)
     return img
+#%%
+def plot_images_labels(x,y, model=None, **kwargs):
+    if model: 
+        y_hat = torch.argmax(model(x),dim=1)
+        y_hat = y_hat.cpu().numpy()
+    else: 
+        y_hat = len(x)*['']
+    bs = len(x)
+    # fig, axs = plt.subplots(nrows, nrows, **kwargs)
+    x = x.permute(0,2,3,1).cpu().numpy()
+    y = y.cpu().numpy()
+    fig, axs = plt.subplots(nrows=2, ncols=bs//2, **kwargs)
+    for num in range(bs):
+            axs[num%2][num//2].imshow(x[num])
+            axs[num%2][num//2].set_title(f"True: {y[num]} -- Pred: {y_hat[num]}")
+    return fig
 
 transform_list = [tr.RandomAffine(degrees=15), tr.RandomHorizontalFlip(p=0.5),  tr.RandomResizedCrop(size=(608,800), scale=(0.5,0.9))]
 transformations = tr.Compose(transform_list)
@@ -123,3 +141,11 @@ class CassavaDataModule(pl.LightningDataModule):
     def test_dataloader(self, *args, **kwargs) -> DataLoader:
         test_dataset = CassavaDataset(self.test_df, data_dir=os.path.join(self.data_dir, 'test_images'), transformations=get_inference_transforms())
         return DataLoader(test_dataset, batch_size=self.bs, num_workers=self.num_workers)
+    def plot_batch(self, batch_num, model=None,sample='train', **kwargs):
+        if sample == 'train': gen = iter(self.train_dataloader())
+        elif sample == 'val': gen = iter(self.val_dataloader())
+        elif sample == 'test': gen = iter(self.test_dataloader())
+        else: raise ValueError("Invalid sample choose one of the following: 'train', 'val', 'test'")
+        for _ in range(batch_num): next(gen)
+        x, y = next(gen)
+        return plot_images_labels(x, y, model, **kwargs)

@@ -1,7 +1,8 @@
 # MODIFIED FROM
 # https://github.com/lukemelas/EfficientNet-PyTorch/blob/master/efficientnet_pytorch/model.py
 # https://github.com/asyml/vision-transformer-pytorch/blob/main/src/model.py
-
+# CLONED FROM 
+# https://github.com/asyml/vision-transformer-pytorch.git
 import torch
 import numpy as np
 import torch.nn as nn

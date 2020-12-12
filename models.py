@@ -9,6 +9,7 @@ from efficientnet_pytorch import EfficientNet
 from vision_transformer_pytorch import VisionTransformer
 import wandb 
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
+from torch.cuda.amp import autocast
 #%%
 def make_classification_figure(image_tensor, y_true, y_pred):    
     batch_tensor = image_tensor.permute((0,2,3,1)).cpu().numpy()
@@ -27,40 +28,46 @@ def make_classification_figure(image_tensor, y_true, y_pred):
     return fig
 
 class LeafClassifier(pl.LightningModule):
-    def __init__(self, lr=1e-3, opt_freq = 300, dec_rate = 0.98, opt_upsteps = 3 ) -> None:
+    def __init__(self, lr=1e-3, opt_freq = 300, dec_rate = 0.98, opt_upsteps = 3, weight_decay=0 ) -> None:
         super().__init__()
         self.save_hyperparameters()
         self.lr =lr
         self.opt_freq = opt_freq
         self.dec_rate = dec_rate
         self.opt_upsteps = opt_upsteps
+        self.wd = weight_decay 
         self.example_input_array = torch.ones(size = (1,3,384,384))
         self.loss = nn.CrossEntropyLoss()
         self.train_accuracy = pl.metrics.Accuracy()
         self.val_accuracy = pl.metrics.Accuracy()
         #self.train_fscore = pl.metrics.FBeta(num_classes=5)
-    def log_step(self, phase, loss, acc, x, batch_idx):
+    def log_step(self, phase, loss, acc, x, y, y_pred, batch_idx):
         self.log(f'{phase}_loss', loss)
         self.log(f'{phase}_acc_step', acc, prog_bar=True)
         #self.log('train_fscore', self.train_fscore(y_hat, y))
-        if batch_idx % 200 == 0 and type(self.logger).__name__=='TensorBoardLogger':
+        if batch_idx % 200 == 0 and isinstance(self.logger, TensorBoardLogger):
             self.logger.experiment.add_images(f'{phase}_image', x, dataformats ='NCHW', global_step=self.global_step)
         elif batch_idx % 200 == 0 and isinstance(self.logger, WandbLogger):
+            batch_imgs = x.data.permute(0,2,3,1).cpu().numpy()
+            true_labels = y.data.cpu().numpy()
+            pred_labels = torch.argmax(y_pred.data, dim=1).cpu().numpy()
+            self.logger.experiment.log({f'{phase}_image':[wandb.Image(img, caption=f'True: {true_label} -- Pred: {pred_label}') for img, true_label, pred_label in zip(batch_imgs, true_labels, pred_labels)]})
+            # for name, param in self.named_parameters():
+            #     self.logger.experiment.log({name:[wandb.Image()]})
 
-            self.logger.experiment.log({f'{phase}_image': [wandb.Image(x.data.permute(0,2,3,1).cpu().numpy()[0], caption='image') ]})
     def training_step(self, batch, batch_idx):
         x, y = batch
         y_hat = self(x)
         loss = self.loss(y_hat, y)
         acc = self.train_accuracy(y_hat, y)
-        self.log_step('train', loss,acc,x,batch_idx)
+        self.log_step('train', loss,acc,x, y, y_hat, batch_idx)
         return loss
     def validation_step(self, batch, batch_idx):
         x, y = batch
         y_hat = self(x)
         loss = self.loss(y_hat, y)
         acc = self.val_accuracy(y_hat, y)
-        self.log_step('val', loss,acc,x,batch_idx)
+        self.log_step('val', loss,acc,x, y, y_hat, batch_idx)
         return loss
     def test_step(self, batch, batch_idx):
         x, _ = batch
@@ -78,10 +85,11 @@ class LeafClassifier(pl.LightningModule):
         self.test_results = results
         return results
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
-        schedule_fun = lambda step: (self.dec_rate**step)*(1+ step%self.opt_upsteps)
-        lr_scheduler = {'scheduler': torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda = [schedule_fun]),
-                    'interval': 'step', 'frequency':self.opt_freq,  'monitor':'val_loss'}
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.wd)
+        # schedule_fun = lambda step: (self.dec_rate**step)*(1+ step%self.opt_upsteps)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10, T_mult=1, eta_min=1e-6, last_epoch=-1)
+        # scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda = [schedule_fun])
+        lr_scheduler = {'scheduler':scheduler, 'interval': 'step', 'frequency':self.opt_freq,  'monitor':'val_loss'}
         return [optimizer], [lr_scheduler]
 #%%
 class Resnet18(LeafClassifier):
@@ -114,12 +122,12 @@ class Resnet50(LeafClassifier):
         out = self.convnet_out(out)
         return out
 
-class EfficientNetB1(LeafClassifier):
-    def __init__(self, num_classes=5, **kwargs) -> None:
-        super(EfficientNetB1, self).__init__(**kwargs)
+class EfficientNetBase(LeafClassifier):
+    def __init__(self, base_name = 'efficientnet-b5', num_classes=5, **kwargs) -> None:
+        super(EfficientNetBase, self).__init__(**kwargs)
         self.save_hyperparameters()
         # self.convnet = EfficientNet.from_pretrained('efficientnet-b1')
-        self.convnet = EfficientNet.from_name('efficientnet-b3')
+        self.convnet = EfficientNet.from_name(base_name)
         self.dropout = nn.Dropout(inplace=True)
         #self.convnet = EfficientNet(blocks_args=2)
         self.convnet_out = nn.Linear(1000, num_classes)
@@ -155,13 +163,15 @@ class EnsembleClassifier(LeafClassifier):
         self.model1 = VisionTransformer.from_pretrained('ViT-B_16')  
         #self.model1.load_state_dict(torch.load('../input/vit-model-1/ViT-B_16.pt'))
         self.model2 = EfficientNet.from_pretrained('efficientnet-b3')
-        self.convnet_out = nn.Linear(1000, num_classes)
+        self.dropout = nn.Dropout(p=0.75, inplace=True)
         self.relu = nn.ReLU(inplace=True)
-        
+        self.convnet_out = nn.Linear(1000, num_classes)
+    # @autocast()
     def forward(self, x):
         x1 = self.model1(x)
         x2 = self.model2(x)
-        out = self.relu( 0.6 * x1 + 0.4 * x2)
+        out = self.dropout(0.6 * x1 + 0.4 * x2)
+        out = self.relu( out)
         out = self.convnet_out(out)
         return out
     

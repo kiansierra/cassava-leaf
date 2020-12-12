@@ -1,2 +1,4 @@
 pytorch_lightning
 efficientnet_pytorch
+wandb
+albumentations
